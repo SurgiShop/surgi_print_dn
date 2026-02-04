@@ -118,7 +118,7 @@ def test_webhook_connection():
     try:
         import requests
         response = requests.post("https://suzanna-multiplicative-francina.ngrok-free.dev/print", 
-                                json={"printer_name": "Brother_HL-L3210CW_series", "job_name": "Test", "pdf_data": "dGVzdA=="},
+                                json={"printer_name": "HP_LaserJet_Pro_4001_75BDC1", "job_name": "Test", "pdf_data": "dGVzdA=="},
                                 timeout=10)
         return {
             "success": True,
