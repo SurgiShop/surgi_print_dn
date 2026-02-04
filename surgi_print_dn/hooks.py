@@ -27,5 +27,5 @@ required_apps = ["erpnext"]
 app_config = {
     "cups_server_ip": "47.206.233.222",
     "cups_server_port": 631,
-    "default_printer": "Brother 3210"
+    "default_printer": "HP_LaserJet_Pro_4001_75BDC1"
 }
