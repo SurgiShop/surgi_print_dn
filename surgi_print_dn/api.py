@@ -247,3 +247,41 @@ def send_delivery_note_print_to_cups(doc_name, printer_name):
     Calls the main send_dn_print_to_cups function.
     """
     return send_dn_print_to_cups(doc_name, printer_name)
+
+@frappe.whitelist()
+def print_attachment_via_webhook(file_url, file_name, printer_name):
+    """
+    Print an attached file (PDF or DOC) via the print bridge
+    """
+    import requests
+    from frappe.utils import get_site_name, get_url
+    
+    # Get the full URL for the file
+    site_url = get_url()
+    if file_url.startswith('/'):
+        full_file_url = f"{site_url}{file_url}"
+    else:
+        full_file_url = file_url
+    
+    # Get your print bridge webhook URL from Site Config or hardcode it
+    webhook_url = frappe.conf.get("print_bridge_webhook_url") or "https://your-tunnel-url.trycloudflare.com/print-attachment"
+    
+    payload = {
+        "file_url": full_file_url,
+        "file_name": file_name,
+        "printer_name": printer_name,
+        "site_name": get_site_name()
+    }
+    
+    # Send to print bridge
+    response = requests.post(
+        webhook_url,
+        json=payload,
+        timeout=10
+    )
+    
+    if response.status_code == 200:
+        frappe.logger().info(f"Attachment {file_name} sent to printer {printer_name}")
+        return {"status": "success", "message": f"Printed {file_name}"}
+    else:
+        frappe.throw(f"Print failed: {response.text}")
