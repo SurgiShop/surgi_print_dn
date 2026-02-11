@@ -253,33 +253,56 @@ def send_delivery_note_print_to_cups(doc_name, printer_name):
 def print_attachment_via_webhook(file_url, file_name, printer_name):
     """
     Print an attached file (PDF or DOC) via the print bridge
+    Downloads the file from Frappe first, then sends it to print bridge as base64
     """
     import requests
     from frappe.utils import get_url
     
     try:
-        # Build the full URL for the file
-        site_url = get_url()
+        frappe.logger().info(f"Starting attachment print for: {file_name}")
+        frappe.logger().info(f"File URL: {file_url}")
         
-        if file_url.startswith('/'):
-            # Relative URL - make it absolute
-            full_file_url = f"{site_url}{file_url}"
-        else:
-            # Already absolute
-            full_file_url = file_url
+        # Get the file content directly from Frappe filesystem
+        # This bypasses the authentication issue with private files
+        file_doc = frappe.get_list(
+            "File",
+            filters={"file_url": file_url},
+            fields=["name"],
+            limit=1
+        )
         
-        # Get webhook URL from site config - use the same ngrok URL as your delivery notes
+        if not file_doc:
+            error_msg = f"File not found in database: {file_url}"
+            frappe.logger().error(error_msg)
+            return {"status": "error", "message": error_msg}
+        
+        # Get the actual file document
+        file_name_obj = file_doc[0].name
+        file_obj = frappe.get_doc("File", file_name_obj)
+        file_path = file_obj.get_full_path()
+        
+        frappe.logger().info(f"Reading file from path: {file_path}")
+        
+        # Read the file content
+        with open(file_path, 'rb') as f:
+            file_content = f.read()
+        
+        frappe.logger().info(f"File read successfully, size: {len(file_content)} bytes")
+        
+        # Encode to base64
+        file_base64 = base64.b64encode(file_content).decode('utf-8')
+        
+        # Get webhook URL
         webhook_base = frappe.conf.get("print_bridge_webhook_url") or "https://suzanna-multiplicative-francina.ngrok-free.dev"
-        webhook_url = f"{webhook_base}/print-attachment"
+        webhook_url = f"{webhook_base}/print-attachment-base64"
         
         payload = {
-            "file_url": full_file_url,
+            "file_data": file_base64,
             "file_name": file_name,
             "printer_name": printer_name
         }
         
-        frappe.logger().info(f"Sending attachment to print bridge: {file_name}")
-        frappe.logger().info(f"File URL: {full_file_url}")
+        frappe.logger().info(f"Sending {len(file_base64)} chars to print bridge")
         frappe.logger().info(f"Webhook URL: {webhook_url}")
         
         # Send to print bridge
@@ -292,7 +315,7 @@ def print_attachment_via_webhook(file_url, file_name, printer_name):
             webhook_url,
             json=payload,
             headers=headers,
-            timeout=30
+            timeout=60
         )
         
         if response.status_code == 200:
