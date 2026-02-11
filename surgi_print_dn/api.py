@@ -248,40 +248,65 @@ def send_delivery_note_print_to_cups(doc_name, printer_name):
     """
     return send_dn_print_to_cups(doc_name, printer_name)
 
+
 @frappe.whitelist()
 def print_attachment_via_webhook(file_url, file_name, printer_name):
     """
     Print an attached file (PDF or DOC) via the print bridge
     """
     import requests
-    from frappe.utils import get_site_name, get_url
+    from frappe.utils import get_url
     
-    # Get the full URL for the file
-    site_url = get_url()
-    if file_url.startswith('/'):
-        full_file_url = f"{site_url}{file_url}"
-    else:
-        full_file_url = file_url
-    
-    # Get your print bridge webhook URL from Site Config or hardcode it
-    webhook_url = frappe.conf.get("print_bridge_webhook_url") or "https://your-tunnel-url.trycloudflare.com/print-attachment"
-    
-    payload = {
-        "file_url": full_file_url,
-        "file_name": file_name,
-        "printer_name": printer_name,
-        "site_name": get_site_name()
-    }
-    
-    # Send to print bridge
-    response = requests.post(
-        webhook_url,
-        json=payload,
-        timeout=10
-    )
-    
-    if response.status_code == 200:
-        frappe.logger().info(f"Attachment {file_name} sent to printer {printer_name}")
-        return {"status": "success", "message": f"Printed {file_name}"}
-    else:
-        frappe.throw(f"Print failed: {response.text}")
+    try:
+        # Build the full URL for the file
+        site_url = get_url()
+        
+        if file_url.startswith('/'):
+            # Relative URL - make it absolute
+            full_file_url = f"{site_url}{file_url}"
+        else:
+            # Already absolute
+            full_file_url = file_url
+        
+        # Get webhook URL from site config - use the same ngrok URL as your delivery notes
+        webhook_base = frappe.conf.get("print_bridge_webhook_url") or "https://suzanna-multiplicative-francina.ngrok-free.dev"
+        webhook_url = f"{webhook_base}/print-attachment"
+        
+        payload = {
+            "file_url": full_file_url,
+            "file_name": file_name,
+            "printer_name": printer_name
+        }
+        
+        frappe.logger().info(f"Sending attachment to print bridge: {file_name}")
+        frappe.logger().info(f"File URL: {full_file_url}")
+        frappe.logger().info(f"Webhook URL: {webhook_url}")
+        
+        # Send to print bridge
+        headers = {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Frappe-Surgi-Print/1.0'
+        }
+        
+        response = requests.post(
+            webhook_url,
+            json=payload,
+            headers=headers,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            frappe.logger().info(f"Attachment {file_name} sent to printer {printer_name}: {result}")
+            return {"status": "success", "message": f"Printed {file_name}", "result": result}
+        else:
+            error_msg = f"Print failed: {response.status_code} - {response.text}"
+            frappe.logger().error(error_msg)
+            frappe.log_error(error_msg, f"Print Attachment Failed: {file_name}")
+            return {"status": "error", "message": error_msg}
+            
+    except Exception as e:
+        error_msg = str(e)
+        frappe.log_error(message=frappe.get_traceback(), title=f"Print attachment webhook error: {file_name}")
+        frappe.logger().error(f"Exception printing {file_name}: {error_msg}")
+        return {"status": "error", "message": error_msg}
