@@ -5,28 +5,32 @@ import tempfile
 import requests
 import base64
 
+# Print format mapping - ensures custom formats are used
+PRINT_FORMAT_DEFAULTS = {
+    "Delivery Note": "Surgi Delivery Note",
+    "Packing Slip": "Surgi Put Away",
+}
+
 @frappe.whitelist()
-def print_delivery_note_via_webhook(doc_name, printer_name):
+def print_delivery_note_via_webhook(doc_name, printer_name, print_format="Surgi Delivery Note"):
     """
     Generates a PDF of the specified Delivery Note and sends it to a CUPS printer.
     """
     doctype = "Delivery Note"
-    # Webhook bridge URL (you'll need to set this up)
-    webhook_url = "https://suzanna-multiplicative-francina.ngrok-free.dev/print"  # Replace with your ngrok URL
+    webhook_url = "https://suzanna-multiplicative-francina.ngrok-free.dev/print"
     temp_file_path = None
 
     try:
-        # Log the print request
-        frappe.logger().info(f"Starting webhook print job for Delivery Note '{doc_name}' to printer '{printer_name}'")
+        frappe.logger().info(f"Starting webhook print job for Delivery Note '{doc_name}' to printer '{printer_name}' using format '{print_format}'")
         
         # Check document exists
         if not frappe.db.exists(doctype, doc_name):
             frappe.throw(f"Delivery Note '{doc_name}' not found.")
         
-        # Generate PDF
-        frappe.logger().info(f"Generating PDF for Delivery Note '{doc_name}'")
+        # Generate PDF with the specified print format
+        frappe.logger().info(f"Generating PDF using print format: {print_format}")
         try:
-            pdf_file = frappe.get_print(doctype, doc_name, as_pdf=True)
+            pdf_file = frappe.get_print(doctype, doc_name, print_format=print_format, as_pdf=True)
             frappe.logger().info(f"PDF generated successfully, type: {type(pdf_file)}")
         except Exception as pdf_error:
             frappe.logger().error(f"PDF generation failed: {pdf_error}")
@@ -132,7 +136,7 @@ def test_webhook_connection():
         }
 
 @frappe.whitelist()
-def print_delivery_note_with_watermark(doc_name, printer_name, print_format=None):
+def print_delivery_note_with_watermark(doc_name, printer_name, print_format="Surgi Delivery Note"):
     """
     Generates a PDF of the specified Delivery Note with temperature critical watermark
     and sends it to a CUPS printer.
@@ -152,11 +156,10 @@ def print_delivery_note_with_watermark(doc_name, printer_name, print_format=None
         has_critical_items = any(item.get('temperature_critical') == 1 for item in doc.items)
         
         # Use custom print format if critical items found
-        if has_critical_items and print_format:
-            frappe.logger().info(f"Using custom print format '{print_format}' for critical items")
-            pdf_file = frappe.get_print(doctype, doc_name, print_format=print_format, as_pdf=True)
-        else:
-            pdf_file = frappe.get_print(doctype, doc_name, as_pdf=True)
+        if has_critical_items:
+            frappe.logger().info(f"Using watermarked print format '{print_format}' for critical items")
+        
+        pdf_file = frappe.get_print(doctype, doc_name, print_format=print_format, as_pdf=True)
         
         # Convert to bytes if needed
         if isinstance(pdf_file, str):
@@ -188,7 +191,7 @@ def print_delivery_note_with_watermark(doc_name, printer_name, print_format=None
 def print_document_via_webhook(doctype, doc_name, printer_name, print_format=None):
     """
     Generic function to print any document type via webhook to CUPS printer.
-    Can be used for Delivery Note, Packing Slip, or any other document.
+    Can be used for Delivery Note, Packing Slip, Purchase Order, or any other document.
     """
     webhook_url = "https://suzanna-multiplicative-francina.ngrok-free.dev/print"
     
@@ -199,11 +202,18 @@ def print_document_via_webhook(doctype, doc_name, printer_name, print_format=Non
         if not frappe.db.exists(doctype, doc_name):
             frappe.throw(f"{doctype} '{doc_name}' not found.")
         
+        # Auto-select print format from defaults if not specified
+        if not print_format:
+            print_format = PRINT_FORMAT_DEFAULTS.get(doctype)
+            if print_format:
+                frappe.logger().info(f"Auto-selected print format '{print_format}' for {doctype}")
+        
         # Generate PDF
         if print_format:
             frappe.logger().info(f"Using print format '{print_format}' for {doctype}")
             pdf_file = frappe.get_print(doctype, doc_name, print_format=print_format, as_pdf=True)
         else:
+            frappe.logger().warning(f"No print format specified for {doctype}, using default")
             pdf_file = frappe.get_print(doctype, doc_name, as_pdf=True)
         
         # Convert to bytes if needed
@@ -232,9 +242,9 @@ def print_document_via_webhook(doctype, doc_name, printer_name, print_format=Non
 
 
 @frappe.whitelist()
-def print_packing_slip_via_webhook(doc_name, printer_name, print_format=None):
+def print_packing_slip_via_webhook(doc_name, printer_name, print_format="Surgi Put Away"):
     """
-    Generates a PDF of the specified Packing Slip and sends it to a CUPS printer.
+    Generates a PDF of the specified Packing Slip (Put Away) and sends it to a CUPS printer.
     """
     return print_document_via_webhook("Packing Slip", doc_name, printer_name, print_format)
 
@@ -244,9 +254,9 @@ def print_packing_slip_via_webhook(doc_name, printer_name, print_format=None):
 def send_delivery_note_print_to_cups(doc_name, printer_name):
     """
     Legacy method name for backward compatibility.
-    Calls the main send_dn_print_to_cups function.
+    Calls the main print_delivery_note_via_webhook function.
     """
-    return send_dn_print_to_cups(doc_name, printer_name)
+    return print_delivery_note_via_webhook(doc_name, printer_name)
 
 
 @frappe.whitelist()
