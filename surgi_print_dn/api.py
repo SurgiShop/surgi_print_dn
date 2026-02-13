@@ -249,6 +249,15 @@ def print_packing_slip_via_webhook(doc_name, printer_name, print_format="Surgi P
     return print_document_via_webhook("Packing Slip", doc_name, printer_name, print_format)
 
 
+@frappe.whitelist()
+def print_sales_invoice_via_webhook(doc_name, printer_name, print_format=None):
+    """
+    Prints Sales Invoice via webhook.
+    """
+    return print_document_via_webhook("Sales Invoice", doc_name, printer_name, print_format)
+
+
+
 # Backup method with old name for compatibility
 @frappe.whitelist()
 def send_delivery_note_print_to_cups(doc_name, printer_name):
