@@ -8,7 +8,8 @@ import base64
 # Print format mapping - ensures custom formats are used
 PRINT_FORMAT_DEFAULTS = {
     "Delivery Note": "Surgi Delivery Note",
-    "Packing Slip": "Surgi Put Away",
+    "Packing Slip": "Surgi Packing Slip",
+    "Putaway": "Surgi Putaway",
 }
 
 @frappe.whitelist()
